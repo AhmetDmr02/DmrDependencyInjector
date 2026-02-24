@@ -69,7 +69,19 @@ namespace DmrDependencyInjector
 
                 foreach (var field in fields)
                 {
+                    if (_sceneChanging || _appClosing)
+                    {
+                        result = InjectionResult.Failed;
+                        return;
+                    }
+
                     var service = DmrDIContainer.Resolve(field.FieldType);
+
+                    if (service is UnityEngine.Object unityObj && unityObj == null)
+                    {
+                        service = null;
+                    }
+
                     if (service == null)
                     {
                         if (_factoryService != null && _factoryService.ServiceObjects.TryGetValue(field.FieldType, out var prefab) && prefab != null)

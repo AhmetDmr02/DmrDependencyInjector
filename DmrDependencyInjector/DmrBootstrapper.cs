@@ -1,3 +1,4 @@
+using System.Xml.Schema;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -10,6 +11,12 @@ namespace DmrDependencyInjector
         {
             SceneManager.sceneUnloaded -= OnSceneUnloaded;
             SceneManager.sceneUnloaded += OnSceneUnloaded;
+
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+            SceneManager.sceneLoaded += OnSceneLoaded;
+
+            SceneManager.activeSceneChanged -= OnSceneUnloaded;
+            SceneManager.activeSceneChanged += OnSceneUnloaded;
 
             SceneManager.sceneLoaded -= OnSceneLoaded;
             SceneManager.sceneLoaded += OnSceneLoaded;
@@ -28,6 +35,10 @@ namespace DmrDependencyInjector
             }
         }
 
+        private static void OnSceneUnloaded(Scene _, Scene __)
+        {
+            DIInjectorManager.SetSceneChanging(true);
+        }
         private static void OnSceneUnloaded(Scene scene)
         {
             DIInjectorManager.SetSceneChanging(true);

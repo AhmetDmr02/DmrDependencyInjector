@@ -450,4 +450,30 @@ public class DmrDITests
 
         Assert.AreEqual(0, exceptionsCaught, "Exceptions were thrown during multi-threaded access. The container is not thread-safe!");
     }
+    public class CircularService : MonoBehaviour { private void Awake() => this.Register(); }
+
+    public class DeadlockFactoryClient : MonoBehaviour
+    {
+        [DmrInject] public CircularService Circular;
+    }
+
+    [Test]
+    public void Test20_Factory_Deadlock_Prevention()
+    {
+        var factory = ScriptableObject.CreateInstance<DmrFactoryService>();
+        var prefabGo = new GameObject("CircularPrefab");
+        prefabGo.AddComponent<CircularService>();
+
+        var dictField = typeof(DmrFactoryService).GetField("_serviceObjects", BindingFlags.Instance | BindingFlags.NonPublic);
+        var dict = new System.Collections.Concurrent.ConcurrentDictionary<Type, GameObject>();
+        dict.TryAdd(typeof(CircularService), prefabGo);
+        dictField.SetValue(factory, dict);
+        DIInjectorManager.SetFactory(factory);
+
+        var client = _clientGo.AddComponent<DeadlockFactoryClient>();
+
+        Assert.DoesNotThrow(() => client.Inject());
+
+        UnityEngine.Object.DestroyImmediate(prefabGo);
+    }
 }
