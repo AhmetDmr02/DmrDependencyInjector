@@ -10,9 +10,9 @@ namespace DmrDependencyInjector
 {
     public static class DIInjectorManager
     {
-        static readonly ConcurrentDictionary<Type, List<FieldInfo>> _cache = new();
+        static readonly ConcurrentDictionary<Type, Lazy<List<FieldInfo>>> _cache = new();
 
-        private static DmrFactoryService _factoryService;
+        private static volatile DmrFactoryService _factoryService;
 
         private static Action<Type> _onServiceUnregistered;
 
@@ -41,9 +41,9 @@ namespace DmrDependencyInjector
             }
         }
 
-        private static bool _appClosing;
+        private static volatile bool _appClosing;
 
-        private static bool _sceneChanging;
+        private static volatile bool _sceneChanging;
         public static void SetSceneChanging(bool isChanging) => _sceneChanging = isChanging;
 
         public static void SetFactory(DmrFactoryService factory) => _factoryService = factory;
@@ -125,7 +125,7 @@ namespace DmrDependencyInjector
 
             var fields = GetInjectableFields(target.GetType());
 
-            bool success = false;
+            bool success = true;
             foreach (var field in fields)
             {
                 var service = DmrDIContainer.Resolve(field.FieldType);
@@ -154,21 +154,19 @@ namespace DmrDependencyInjector
 
         public static List<FieldInfo> GetInjectableFields(Type type)
         {
-            return _cache.GetOrAdd(type, t =>
+            return _cache.GetOrAdd(type, t => new Lazy<List<FieldInfo>>(() => Fetch(t))).Value;
+
+            List<FieldInfo> Fetch(Type t)
             {
                 var fields = new List<FieldInfo>();
-
                 while (t != null && t != typeof(object))
                 {
-                    fields.AddRange(
-                       t.GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly)
-                        .Where(f => f.IsDefined(typeof(DmrInjectAttribute), true))
-                    );
+                    fields.AddRange(t.GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly)
+                                     .Where(f => f.IsDefined(typeof(DmrInjectAttribute), true)));
                     t = t.BaseType;
                 }
-
                 return fields;
-            });
+            }
         }
 
         // Auto-register instance with all its types (class + interfaces + base classes)

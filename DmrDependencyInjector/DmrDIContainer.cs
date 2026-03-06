@@ -11,7 +11,9 @@ namespace DmrDependencyInjector
         // Maps service Type -> Instance
         private static readonly ConcurrentDictionary<Type, object> _instances = new();
         // Maps Instance -> Set of registered types (for cleanup)
-        private static readonly ConcurrentDictionary<object, HashSet<Type>> _instanceToTypes = new();
+        private static readonly ConcurrentDictionary<object, ConcurrentDictionary<Type,byte>> _instanceToTypes = new();
+
+        private static readonly object _lock = new object();
 
         internal static bool RegisterWithAllTypes(object instance)
         {
@@ -39,21 +41,31 @@ namespace DmrDependencyInjector
                 }
             }
 
-            var registeredTypes = new HashSet<Type>();
-            foreach (var serviceType in asTypes)
+            lock (_lock)
             {
-                if (_instances.TryGetValue(serviceType, out var existing) && existing != instance)
+                var registeredTypes = new ConcurrentDictionary<Type, byte>();
+                foreach (var serviceType in asTypes)
                 {
-                    Debug.LogWarning($"Service type {serviceType.Name} already registered. Replacing instance.");
-                    CleanupOldInstance(existing, serviceType);
+                    if (_instances.TryGetValue(serviceType, out var existing) && existing != instance)
+                    {
+                        Debug.LogWarning($"Service type {serviceType.Name} already registered. Replacing instance.");
+                        CleanupOldInstance(existing, serviceType);
+                    }
+                    _instances[serviceType] = instance;
+                    registeredTypes.TryAdd(serviceType, 0);
                 }
-                _instances[serviceType] = instance;
-                registeredTypes.Add(serviceType);
-            }
 
-            _instanceToTypes.AddOrUpdate(instance,
-                registeredTypes,
-                (key, existing) => { existing.UnionWith(registeredTypes); return existing; });
+                _instanceToTypes.AddOrUpdate(instance,
+                  registeredTypes,
+                  (key, existing) =>
+                  {
+                      foreach (var kvp in registeredTypes)
+                      {
+                          existing.TryAdd(kvp.Key, 1);
+                      }
+                      return existing;
+                  });
+            }
 
             return true;
         }
@@ -61,21 +73,27 @@ namespace DmrDependencyInjector
         internal static List<Type> UnregisterInstance(object instance)
         {
             var removed = new List<Type>();
+
             if (_instanceToTypes.TryRemove(instance, out var types))
             {
-                foreach (var t in types)
+                foreach (var kvp in types)
                 {
-                    if (_instances.TryGetValue(t, out var inst) && ReferenceEquals(inst, instance))
+                    var t = kvp.Key;
+
+                    var collection = (System.Collections.Generic.ICollection<System.Collections.Generic.KeyValuePair<Type, object>>)_instances;
+                    var pairToRemove = new System.Collections.Generic.KeyValuePair<Type, object>(t, instance);
+
+                    if (collection.Remove(pairToRemove))
                     {
-                        _instances.TryRemove(t, out _);
                         removed.Add(t);
                     }
                 }
             }
             else
             {
-                Debug.LogWarning($"Instance of type {instance.GetType().Name} was not registered.");
+                UnityEngine.Debug.LogWarning($"Instance of type {instance.GetType().Name} was not registered.");
             }
+
             return removed;
         }
 
@@ -111,8 +129,8 @@ namespace DmrDependencyInjector
         {
             if (_instanceToTypes.TryGetValue(oldInstance, out var types))
             {
-                types.Remove(serviceType);
-                if (types.Count == 0)
+                types.TryRemove(serviceType, out _);
+                if (types.IsEmpty)
                     _instanceToTypes.TryRemove(oldInstance, out _);
             }
         }
