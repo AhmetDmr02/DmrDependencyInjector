@@ -193,13 +193,18 @@ void OnServiceDestroyed(Type serviceType)
 
 **Container operations (`Register`, `Unregister`, `Resolve`) use `ConcurrentDictionary` and are thread-safe.**
 
-**Injection (`Inject()`) is NOT thread-safe.** Unity's reflection APIs (`FieldInfo.SetValue`) and GameObject lifecycle methods must run on the main thread. Do not call `Inject()` from background threads.
+**Injection `Inject()`** By default, 
+Inject() should only be called from the Unity Main Thread. Unity's native lifecycle methods, object instantiation, and native null checks will throw exceptions if accessed concurrently.
 
-You can safely call Inject() from background threads on pure C# objects as long as:
+You can safely call `Inject()` from background threads on pure C# objects as long as:
 
--Each thread injects a different object instance (no shared targets)
--The services being resolved are also thread-safe
+-You are injecting into isolated object instances (no multiple threads injecting into the same target simultaneously).
+
+-The services being resolved are designed to be thread-safe.
+
 -No factory instantiation is triggered (which requires Unity's main thread)
+
+-The resolved services do not include UnityEngine.Object types, as Unity's native lifetime checks will crash off the main thread.
 
 **The `OnServiceUnregistered` event uses lock-free `Interlocked.CompareExchange` and is fully thread-safe.**
 
