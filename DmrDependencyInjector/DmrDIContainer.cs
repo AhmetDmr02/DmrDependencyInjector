@@ -72,29 +72,32 @@ namespace DmrDependencyInjector
 
         internal static List<Type> UnregisterInstance(object instance)
         {
-            var removed = new List<Type>();
-
-            if (_instanceToTypes.TryRemove(instance, out var types))
+            lock (_lock)
             {
-                foreach (var kvp in types)
+                var removed = new List<Type>();
+
+                if (_instanceToTypes.TryRemove(instance, out var types))
                 {
-                    var t = kvp.Key;
-
-                    var collection = (System.Collections.Generic.ICollection<System.Collections.Generic.KeyValuePair<Type, object>>)_instances;
-                    var pairToRemove = new System.Collections.Generic.KeyValuePair<Type, object>(t, instance);
-
-                    if (collection.Remove(pairToRemove))
+                    foreach (var kvp in types)
                     {
-                        removed.Add(t);
+                        var t = kvp.Key;
+
+                        var collection = (System.Collections.Generic.ICollection<System.Collections.Generic.KeyValuePair<Type, object>>)_instances;
+                        var pairToRemove = new System.Collections.Generic.KeyValuePair<Type, object>(t, instance);
+
+                        if (collection.Remove(pairToRemove))
+                        {
+                            removed.Add(t);
+                        }
                     }
                 }
-            }
-            else
-            {
-                UnityEngine.Debug.LogWarning($"Instance of type {instance.GetType().Name} was not registered.");
-            }
+                else
+                {
+                    UnityEngine.Debug.LogWarning($"Instance of type {instance.GetType().Name} was not registered.");
+                }
 
-            return removed;
+                return removed;
+            }
         }
 
         // Resolves an instance by service type, or null if none found
