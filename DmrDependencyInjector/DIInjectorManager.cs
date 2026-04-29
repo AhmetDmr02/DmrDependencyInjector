@@ -174,7 +174,10 @@ namespace DmrDependencyInjector
         {
            return DmrDIContainer.RegisterWithAllTypes(instance);
         }
-
+        public static bool SingleRegister<T>(T instance)
+        {
+            return DmrDIContainer.Register(instance, typeof(T));
+        }
         public static void Unregister(object instance)
         {
             var unregisteredTypes = DmrDIContainer.UnregisterInstance(instance);
