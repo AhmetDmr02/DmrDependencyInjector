@@ -53,6 +53,69 @@ namespace DmrDependencyInjector
             Application.quitting += () => _appClosing = true;
         }
 
+        public static void InjectStaticDependencies(Type targetType, out InjectionResult result)
+        {
+            if (_appClosing || _sceneChanging)
+            {
+                result = InjectionResult.Failed;
+                return;
+            }
+
+            List<string> failedFields = null;
+
+            try
+            {
+                var fields = GetInjectableFields(targetType);
+
+                foreach (var field in fields)
+                {
+                    if (_sceneChanging || _appClosing)
+                    {
+                        result = InjectionResult.Failed;
+                        return;
+                    }
+
+                    // Ensure we only attempt to inject into static fields here
+                    if (!field.IsStatic) continue;
+
+                    var service = DmrDIContainer.Resolve(field.FieldType);
+
+                    if (service is UnityEngine.Object unityObj && unityObj == null)
+                    {
+                        service = null;
+                    }
+
+                    if (service == null)
+                    {
+                        if (_factoryService != null && _factoryService.ServiceObjects.TryGetValue(field.FieldType, out var prefab) && prefab != null)
+                        {
+                            _factoryService.CreateServiceObject(field.FieldType);
+                            service = DmrDIContainer.Resolve(field.FieldType);
+
+                            if (service != null)
+                            {
+                                field.SetValue(null, service); // 'null' target is required for static fields
+                                continue;
+                            }
+                        }
+
+                        failedFields ??= new List<string>();
+                        failedFields.Add($"{field.DeclaringType?.Name}.{field.Name} ({field.FieldType.Name})");
+                        continue;
+                    }
+
+                    field.SetValue(null, service); // 'null' target is required for static fields
+                }
+
+                result = (failedFields == null || failedFields.Count == 0) ? InjectionResult.Success : InjectionResult.PartialFailure(failedFields.ToList());
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Static injection failed for {targetType.Name}: {ex.Message}");
+                result = InjectionResult.Failed;
+            }
+        }
+
         public static void InjectClassDependencies(object target, out InjectionResult result)
         {
             if (_appClosing || _sceneChanging)
@@ -161,8 +224,8 @@ namespace DmrDependencyInjector
                 var fields = new List<FieldInfo>();
                 while (t != null && t != typeof(object))
                 {
-                    fields.AddRange(t.GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly)
-                                     .Where(f => f.IsDefined(typeof(DmrInjectAttribute), true)));
+                    fields.AddRange(t.GetFields(BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly)
+                                      .Where(f => f.IsDefined(typeof(DmrInjectAttribute), true)));
                     t = t.BaseType;
                 }
                 return fields;
