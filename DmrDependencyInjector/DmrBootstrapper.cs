@@ -41,7 +41,10 @@ namespace DmrDependencyInjector
         }
         private static void OnSceneUnloaded(Scene scene)
         {
-            DIInjectorManager.SetSceneChanging(true);
+            if (scene == SceneManager.GetActiveScene())
+            {
+                DIInjectorManager.SetSceneChanging(true);
+            }
         }
 
         private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
