@@ -92,6 +92,8 @@ namespace DmrDependencyInjector
                             _factoryService.CreateServiceObject(field.FieldType);
                             service = DmrDIContainer.Resolve(field.FieldType);
 
+                            if (service is UnityEngine.Object uObj && uObj == null) service = null;
+
                             if (service != null)
                             {
                                 field.SetValue(null, service); // 'null' target is required for static fields
@@ -153,6 +155,8 @@ namespace DmrDependencyInjector
 
                             service = DmrDIContainer.Resolve(field.FieldType);
 
+                            if (service is UnityEngine.Object uObj && uObj == null) service = null;
+
                             if (service != null)
                             {
                                 field.SetValue(target, service);
@@ -192,6 +196,12 @@ namespace DmrDependencyInjector
             foreach (var field in fields)
             {
                 var service = DmrDIContainer.Resolve(field.FieldType);
+
+                if (service is UnityEngine.Object unityObj && unityObj == null)
+                {
+                    service = null;
+                }
+
                 if (service == null)
                 {
                     if (_factoryService != null && _factoryService.ServiceObjects.TryGetValue(field.FieldType, out var prefab) && prefab != null)
@@ -199,6 +209,8 @@ namespace DmrDependencyInjector
                         _factoryService.CreateServiceObject(field.FieldType);
 
                         service = DmrDIContainer.Resolve(field.FieldType);
+
+                        if (service is UnityEngine.Object uObj && uObj == null) service = null;
 
                         if (service != null)
                         {
